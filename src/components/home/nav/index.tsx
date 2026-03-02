@@ -21,12 +21,16 @@ const Nav = () => {
                     </Link>
                 </div>
                 <div className="flex flex-row gap-2 items-center">
-                    <Button className="font-semibold text-xl">
-                        Login
-                    </Button>
-                    <Button className="font-semibold text-xl" variant="outline">
-                        SignUp
-                    </Button>
+                    <Link href="/login">
+                        <Button className="font-semibold text-xl">
+                            Login
+                        </Button>
+                    </Link>
+                    <Link href="/signup">
+                        <Button className="font-semibold text-xl" variant="outline">
+                            SignUp
+                        </Button>
+                    </Link>
                 </div>
             </nav>
             <Separator />

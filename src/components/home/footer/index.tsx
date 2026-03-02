@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Github, Twitter, Linkedin, Mail } from "lucide-react";
+import Reveal from "../../common/Reveal";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -70,22 +71,9 @@ function NewsletterRow() {
 }
 
 export default function Footer() {
-    const ref = useRef<HTMLDivElement>(null);
-    const [visible, setVisible] = useState(false);
-
-    useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
-        const observer = new IntersectionObserver(
-            ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
-            { threshold: 0.05 }
-        );
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
 
     return (
-        <>
+        <Reveal className="px-10" once={false}>
             <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400&display=swap');
         .font-display { font-family: 'Syne', sans-serif; }
@@ -109,19 +97,11 @@ export default function Footer() {
                     />
                 </div>
 
-                <div
-                    ref={ref}
-                    className={`relative z-10 max-w-6xl mx-auto px-6 transition-all duration-700 ease-out ${
-                        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                    }`}
-                >
+                <div>
 
-                    {/* ── Upper section ── */}
                     <div className="py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
 
-                        {/* Brand col — takes 2 columns */}
                         <div className="lg:col-span-2 flex flex-col gap-6">
-                            {/* Logo */}
                             <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-lg bg-linear-to-br from-emerald-400/20 to-cyan-400/10 border border-emerald-400/20 flex items-center justify-center">
                                     <span className="text-emerald-400 text-sm font-display font-bold">AI</span>
@@ -131,12 +111,10 @@ export default function Footer() {
                 </span>
                             </div>
 
-                            {/* Tagline */}
                             <p className="font-body text-white/35 text-sm leading-relaxed max-w-xs">
                                 AI-powered interview preparation that adapts to your role, your pace, and your goals.
                             </p>
 
-                            {/* Social icons */}
                             <div className="flex items-center gap-2">
                                 {socials.map(({ icon: Icon, label, href }) => (
                                     <a
@@ -150,7 +128,6 @@ export default function Footer() {
                                 ))}
                             </div>
 
-                            {/* Newsletter */}
                             <NewsletterRow />
                         </div>
 
@@ -158,10 +135,6 @@ export default function Footer() {
                         {Object.entries(links).map(([category, items], colIndex) => (
                             <div
                                 key={category}
-                                className={`flex flex-col gap-4 transition-all duration-500 ease-out ${
-                                    visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                                }`}
-                                style={{ transitionDelay: `${colIndex * 80 + 150}ms` }}
                             >
                                 <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/30">
                                     {category}
@@ -206,6 +179,6 @@ export default function Footer() {
                     </div>
                 </div>
             </footer>
-        </>
+        </Reveal>
     );
 }

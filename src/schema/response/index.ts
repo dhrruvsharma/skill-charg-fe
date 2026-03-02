@@ -25,3 +25,7 @@ export const BackendErrorResponseSchema = z.object({
     message: z.string(),
     success: z.boolean(),
 });
+
+export const BooleanResponseSchema = z.object({
+    data: z.boolean(),
+})
