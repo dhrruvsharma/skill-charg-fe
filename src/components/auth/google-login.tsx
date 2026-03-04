@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AuthService } from "@/src/service";
 import { toast } from "sonner";
+import {setCookieAction} from "@/src/actions/auth";
 
 const GOOGLE_AUTH_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/google`;
 
@@ -26,31 +26,52 @@ export default function GoogleAuthButton({ disabled, onSuccess }: GoogleAuthButt
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
+        const error = params.get("error");
         const state = params.get("state");
+
+        if (error) {
+            console.error("OAuth error:", error, params.get("error_description"));
+            toast.error(`OAuth error: ${error}`);
+            return;
+        }
+
         if (!code || !state) return;
 
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, "", cleanUrl);
+        window.history.replaceState({}, "", window.location.pathname);
 
         const exchange = async () => {
             setLoading(true);
-            const { success, error, data } = await AuthService.googleCallback(code,state);
-            if (!success || error || !data) {
-                toast.error(error?.message || "Google sign-in failed");
+            try {
+                const res = await fetch("/api/auth/google/callback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ code, state }),
+                });
+
+                const result = await res.json();
+
+                if (!res.ok || !result.success) {
+                    toast.error(result?.error?.message || "Google sign-in failed");
+                    return;
+                }
+
+                toast.success("Signed in with Google!");
+                onSuccess?.(result.data);
+            } catch {
+                toast.error("Something went wrong. Please try again.");
+            } finally {
                 setLoading(false);
-                return;
             }
-            toast.success("Signed in with Google!");
-            onSuccess?.(data);
-            setLoading(false);
         };
 
         exchange();
     }, []);
 
-    const handleGoogleSignIn = () => {
+    const handleGoogleSignIn = async () => {
         setLoading(true);
-        window.location.href = GOOGLE_AUTH_URL;
+        const state = crypto.randomUUID();
+        await setCookieAction("oauth_state",state,60*10);
+        window.location.href = `${GOOGLE_AUTH_URL}?state=${encodeURIComponent(state)}`;
     };
 
     return (

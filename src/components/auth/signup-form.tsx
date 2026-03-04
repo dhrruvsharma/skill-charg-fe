@@ -14,7 +14,8 @@ import {Button} from "@/src/components/ui/button";
 import Link from "next/link";
 import {ArrowRight, Sparkles, Mail, RotateCcw, ShieldCheck} from "lucide-react";
 import GoogleAuthButton from "@/src/components/auth/google-login";
-
+import {setCookieAction} from "@/src/actions/auth";
+import {useRouter} from "next/navigation";
 
 interface OtpStepProps {
     email: string;
@@ -164,6 +165,7 @@ const SignupForm = () => {
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<"signup" | "otp">("signup");
     const [submittedEmail, setSubmittedEmail] = useState("");
+    const router = useRouter();
 
     const form = useForm({
         resolver: zodResolver(SignUpRequestSchema),
@@ -255,7 +257,11 @@ const SignupForm = () => {
 
                                         <GoogleAuthButton
                                             disabled={loading}
-                                            onSuccess={handleVerifySuccess}
+                                            onSuccess={async (data) => {
+                                                await setCookieAction("access_token",data.access_token,60*60);
+                                                await setCookieAction("refresh_token",data.refresh_token,60*60*24*6);
+                                                router.replace("/user/dashboard");
+                                            }}
                                         />
 
                                         <div className="flex items-center gap-3 my-5">

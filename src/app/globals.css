@@ -83,10 +83,10 @@
 }
 
 .dark {
-  --background: oklch(0.08 0 0);         /* #080808 */
+  --background: oklch(0.08 0 0);
   --foreground: oklch(0.985 0 0);
 
-  --card: oklch(0.11 0 0);               /* matches bg-white/3 on dark */
+  --card: oklch(0.11 0 0);
   --card-foreground: oklch(0.985 0 0);
 
   --popover: oklch(0.11 0 0);

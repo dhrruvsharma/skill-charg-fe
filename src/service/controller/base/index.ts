@@ -14,6 +14,7 @@ export abstract class BaseController {
         try {
             return await response.json();
         } catch (error) {
+            console.log("Response from server", response);
             return {
                 success: false,
                 message: "Malformed JSON from server",
@@ -28,9 +29,11 @@ export abstract class BaseController {
     ): Promise<ClientResponse<T>> {
         try {
             const response = await reqFn();
+            console.log("response when connection error", response);
             const json = await this.safeJson(response);
             return responseParser<T>(json, schema, key);
         } catch (error) {
+            console.log(error);
             return {
                 success: false,
                 data: null,
@@ -47,9 +50,10 @@ export abstract class BaseController {
         schema: ZodType<T>,
         key?: string,
         headers?: Record<string, string>,
+        skipAuth = false,
     ): Promise<ClientResponse<T>> {
         return this.safeRequest(
-            () => this.apiClient.get(url, headers),
+            () => this.apiClient.get(url, headers,skipAuth),
             schema,
             key,
         );
@@ -60,9 +64,10 @@ export abstract class BaseController {
         schema: ZodType<T>,
         key?: string,
         headers?: Record<string, string>,
+        skipAuth = false,
     ): Promise<ClientResponse<T>> {
         return this.safeRequest(
-            () => this.apiClient.post(url, body, headers),
+            () => this.apiClient.post(url, body, headers, skipAuth),
             schema,
             key,
         );
@@ -73,9 +78,10 @@ export abstract class BaseController {
         schema: ZodType<T>,
         key?: string,
         headers?: Record<string, string>,
+        skipAuth = false,
     ): Promise<ClientResponse<T>> {
         return this.safeRequest(
-            () => this.apiClient.put(url, body, headers),
+            () => this.apiClient.put(url, body, headers, skipAuth),
             schema,
             key,
         );
@@ -86,9 +92,10 @@ export abstract class BaseController {
         schema: ZodType<T>,
         key?: string,
         headers?: Record<string, string>,
+        skipAuth = false,
     ): Promise<ClientResponse<T>> {
         return this.safeRequest(
-            () => this.apiClient.patch(url, body, headers),
+            () => this.apiClient.patch(url, body, headers, skipAuth),
             schema,
             key,
         );
@@ -98,9 +105,10 @@ export abstract class BaseController {
         schema: ZodType<T>,
         key?: string,
         headers?: Record<string, string>,
+        skipAuth = false,
     ): Promise<ClientResponse<T>> {
         return this.safeRequest(
-            () => this.apiClient.delete(url, headers),
+            () => this.apiClient.delete(url, headers, skipAuth),
             schema,
             key,
         );

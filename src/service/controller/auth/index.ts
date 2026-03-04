@@ -9,18 +9,15 @@ export default class AuthController extends BaseController {
         super(`${backendUrl}/api/v1/auth`)
     }
     async login(req: LoginRequest): Promise<ClientResponse<LoginResponse>> {
-        return this.post(`/login`,req,AuthResponseSchema, "data");
+        return this.post(`/login`,req,AuthResponseSchema, "data",{},true);
     }
     async signup(req: SignupRequest): Promise<ClientResponse<BooleanResponse>> {
-        return this.post(`/signup`,req,BooleanResponseSchema, "data");
+        return this.post(`/signup`,req,BooleanResponseSchema, "data",{},true);
     }
     async verifyOtp(req: OtpRequest): Promise<ClientResponse<LoginResponse>> {
-        return this.post(`/verify-otp`,req,AuthResponseSchema, "data");
-    }
-    async googleCallback(code: string,state: string): Promise<ClientResponse<LoginResponse>> {
-        return this.post(`/google/callback`, { code, state }, AuthResponseSchema, "data");
+        return this.post(`/verify-otp`,req,AuthResponseSchema, "data",{},true);
     }
     async resendOtp(req: { email: string }): Promise<ClientResponse<BooleanResponse>> {
-        return this.post(`/resend-verification`, req, BooleanResponseSchema, "data");
+        return this.post(`/resend-verification`, req, BooleanResponseSchema, "data",{},true);
     }
 }

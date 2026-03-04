@@ -73,14 +73,14 @@ function NewsletterRow() {
 export default function Footer() {
 
     return (
-        <Reveal className="px-10" once={false}>
+        <Reveal once={false}>
             <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400&display=swap');
         .font-display { font-family: 'Syne', sans-serif; }
         .font-body    { font-family: 'DM Sans', sans-serif; }
       `}</style>
 
-            <footer className="relative w-full bg-[#080808] font-body overflow-hidden">
+            <footer className="relative w-full bg-[#080808] font-body overflow-hidden px-10">
 
                 <div className="w-full h-px bg-linear-to-r from-transparent via-white/8 to-transparent" />
 

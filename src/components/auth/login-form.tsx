@@ -14,9 +14,12 @@ import {Button} from "@/src/components/ui/button";
 import Link from "next/link";
 import {ArrowRight, Sparkles} from "lucide-react";
 import GoogleAuthButton from "@/src/components/auth/google-login";
+import {setCookieAction} from "@/src/actions/auth";
+import {useRouter} from "next/navigation";
 
 const LoginForm = () => {
     const [loading, setLoading] = useState<boolean>(false);
+    const router = useRouter();
 
     const form = useForm({
         resolver: zodResolver(LoginRequestSchema),
@@ -32,6 +35,9 @@ const LoginForm = () => {
             return;
         }
         setLoading(false);
+        await setCookieAction("refresh_token",data.refresh_token,60*60*24*6);
+        await setCookieAction("access_token",data.access_token,60*60);
+        router.replace("/user/dashboard");
     };
 
     return (
@@ -96,7 +102,14 @@ const LoginForm = () => {
                                     </p>
                                 </div>
 
-                                <GoogleAuthButton disabled={loading}/>
+                                <GoogleAuthButton
+                                    disabled={loading}
+                                    onSuccess={async (data) => {
+                                        await setCookieAction("access_token",data.access_token,60*60);
+                                        await setCookieAction("refresh_token",data.refresh_token,60*60*24*6);
+                                        router.replace("/user/dashboard");
+                                    }}
+                                />
 
                                 <div className="flex items-center gap-3 mb-5">
                                     <div className="flex-1 h-px bg-white/6"/>
@@ -158,7 +171,6 @@ const LoginForm = () => {
                                             />
                                         </FieldGroup>
 
-                                        {/* Submit */}
                                         <div className="pt-1">
                                             <Button
                                                 type="submit"
