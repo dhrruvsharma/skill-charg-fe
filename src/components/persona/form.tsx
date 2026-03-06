@@ -11,7 +11,6 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/src/components/ui/f
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import { Switch } from "@/src/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 import Reveal from "@/src/components/common/Reveal";
 import {DIFFICULTIES, DOMAINS} from "@/src/components/persona/constants";
@@ -19,6 +18,7 @@ import {PersonaService} from "@/src/service";
 import {usePersona} from "@/src/store/persona/persona-store";
 import {setCookieAction} from "@/src/actions/auth";
 import ToggleRow from "@/src/components/persona/toggle-row";
+import {useRouter} from "next/navigation";
 
 interface PersonaFormProps {
     persona?: Persona;
@@ -31,6 +31,7 @@ const PersonaForm = ({ persona, onSubmit, onCancel }: PersonaFormProps) => {
     const [loading, setLoading] = useState(false);
     const [skillInput, setSkillInput] = useState("");
     const {personas, setPersonas, mutatePersonas} = usePersona();
+    const router = useRouter();
 
     const form = useForm<CreatePersona>({
         resolver: zodResolver(CreatePersonaRequest),
@@ -41,7 +42,7 @@ const PersonaForm = ({ persona, onSubmit, onCancel }: PersonaFormProps) => {
             is_active: true,
             target_role: "",
             experience_years: 0,
-            domain: "general",
+            domain: persona?.domain || "general",
             difficulty: "medium",
             skills: [],
             system_prompt: "",
@@ -84,7 +85,11 @@ const PersonaForm = ({ persona, onSubmit, onCancel }: PersonaFormProps) => {
     const handleSubmit = async (request: CreatePersona) => {
         setLoading(true);
         if (persona) {
-            await onSubmit?.(persona);
+            const updatedPersona = {
+                ...persona,
+                ...request
+            }
+            await onSubmit?.(updatedPersona);
         } else {
             const {success,error,data} = await PersonaService.createPersonaRequest(request)
             if (!success || error || !data) {
@@ -99,6 +104,7 @@ const PersonaForm = ({ persona, onSubmit, onCancel }: PersonaFormProps) => {
             await mutatePersonas();
         }
         setLoading(false);
+        router.replace("/user/persona/list");
     };
 
     return (
@@ -303,14 +309,14 @@ const PersonaForm = ({ persona, onSubmit, onCancel }: PersonaFormProps) => {
                                                     placeholder="e.g. Go, System Design, Kubernetes…"
                                                     className={`flex-1`}
                                                 />
-                                                <button
+                                                <Button
                                                     type="button"
                                                     onClick={addSkill}
                                                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/8 bg-white/3 hover:border-emerald-400/30 hover:bg-emerald-400/5 text-white/50 hover:text-emerald-400 transition-all duration-200 text-xs font-mono"
                                                 >
                                                     <Plus size={13} />
                                                     Add
-                                                </button>
+                                                </Button>
                                             </div>
                                             {skills.length > 0 && (
                                                 <div className="flex flex-wrap gap-2">

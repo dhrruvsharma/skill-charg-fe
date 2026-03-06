@@ -1,7 +1,8 @@
 import {BaseController} from "@/src/service/controller/base";
 import {CreatePersona, Persona, PersonaList} from "@/src/schema/persona/index.type";
-import {ClientResponse} from "@/src/schema/response/index.type";
+import {BooleanResponse, ClientResponse} from "@/src/schema/response/index.type";
 import {CreatePersonaResponse, PersonaListSchema} from "@/src/schema/persona";
+import {BooleanResponseSchema} from "@/src/schema/response";
 
 export default class PersonaController extends BaseController {
     constructor(backendUrl: string) {
@@ -15,5 +16,15 @@ export default class PersonaController extends BaseController {
     }
     async getPersonas(headers?: Record<string, string>): Promise<ClientResponse<PersonaList>> {
         return this.get("", PersonaListSchema, "data", headers)
+    }
+    async editPersona(
+        req: Persona
+    ): Promise<ClientResponse<Persona>> {
+        return this.patch(`/${req.id}`,req,CreatePersonaResponse,"data")
+    }
+    async deletePersona(
+        id: string
+    ): Promise<ClientResponse<BooleanResponse>> {
+        return this.delete(`${id}`,BooleanResponseSchema, "data")
     }
 }
