@@ -6,7 +6,7 @@ import {ZodType} from "zod";
 export abstract class BaseController {
     protected apiClient: APIClient;
     protected constructor(
-        private readonly backendUrl: string,
+        protected readonly backendUrl: string,
     ) {
         this.apiClient = new APIClient(backendUrl);
     }

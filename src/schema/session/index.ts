@@ -37,7 +37,7 @@ export const MessageResponseSchema = z.object({
     session_id: z.string(),
     role: z.string(),
     content: z.string(),
-    sequence_num: z.string(),
+    sequence_num: z.number(),
     created_at: z.string()
 })
 

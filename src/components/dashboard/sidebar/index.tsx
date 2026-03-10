@@ -3,9 +3,18 @@
 import {useSessions} from "@/src/store/sessions/session-store";
 import {Spinner} from "@/src/components/ui/spinner";
 import {Separator} from "@/src/components/ui/separator";
+import {useRouter, useSearchParams} from "next/navigation";
+import {clsx} from "clsx";
 
 const Sidebar = () => {
     const {sessions, sessionsLoading} = useSessions();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const sessionId = searchParams.get("sessionId");
+
+    const handleClick = (id: string) => {
+        router.replace(`/user/dashboard?sessionId=${id}`);
+    }
 
     return (
         <aside className="sidebar h-[94dvh] w-[20dvw] bg-sidebar-accent flex flex-col gap-2 py-4 pl-4">
@@ -20,9 +29,20 @@ const Sidebar = () => {
                     </div>
                 ): (
                     sessions.length > 0 ? (
-                            <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-4 w-full">
                                 {sessions.map((session) => (
-                                    <p key={session.id}>{session.started_at}</p>
+                                    <p
+                                        key={session.id}
+                                        onClick={() => handleClick(session.id)}
+                                        className={clsx(
+                                            "hover: bg-secondary cursor-pointer w-full",
+                                            {
+                                                "bg-sidebar-accent": session.id === sessionId
+                                            }
+                                        )}
+                                    >
+                                        {session.started_at}
+                                    </p>
                                 ))}
                             </div>
                         ) :

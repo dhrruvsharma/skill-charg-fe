@@ -31,7 +31,7 @@ const NoSession = () => {
             setLoading(false);
             return;
         }
-        router.replace(`/dashboard?sessionId=${data.id}`)
+        router.replace(`/user/dashboard?sessionId=${data.id}`)
         await mutateSession();
         setLoading(false);
     }
