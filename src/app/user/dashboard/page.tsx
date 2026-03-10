@@ -1,7 +1,7 @@
+import SessionWrapper from "@/src/components/dashboard/session-wrapper";
+
 const DashboardPage = () => {
-    return (
-        <p>This is the dashboard</p>
-    )
+    return <SessionWrapper />
 }
 
 export default DashboardPage;
