@@ -17,3 +17,7 @@ export type MessageRole = z.infer<typeof MessageRoleSchema>;
 export type SSEDeltaPayload = z.infer<typeof SSEDeltaPayloadSchema>;
 export type SSEErrorPayload = z.infer<typeof SSEErrorPayloadSchema>;
 export type SessionResponseList = z.infer<typeof SessionResponseArraySchema>;
+export type VoiceMessageResult = {
+    message: MessageResponse;
+    audioChunks: Uint8Array[]
+}

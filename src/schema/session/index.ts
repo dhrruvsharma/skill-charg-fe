@@ -21,7 +21,7 @@ export const SessionResponseSchema = z.object({
     ended_at: z.string().optional(),
     persona_name: z.string().optional(),
     system_prompt: z.string().optional(),
-    duration_secs: z.string().optional(),
+    duration_secs: z.number().optional(),
     created_at: z.string(),
     updated_at: z.string().optional(),
 })

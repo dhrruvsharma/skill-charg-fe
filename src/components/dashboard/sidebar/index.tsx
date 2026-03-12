@@ -5,6 +5,7 @@ import {Spinner} from "@/src/components/ui/spinner";
 import {Separator} from "@/src/components/ui/separator";
 import {useRouter, useSearchParams} from "next/navigation";
 import {clsx} from "clsx";
+import {formatDate} from "@/src/lib/date";
 
 const Sidebar = () => {
     const {sessions, sessionsLoading} = useSessions();
@@ -41,7 +42,7 @@ const Sidebar = () => {
                                             }
                                         )}
                                     >
-                                        {session.started_at}
+                                        {formatDate(session.started_at)}
                                     </p>
                                 ))}
                             </div>

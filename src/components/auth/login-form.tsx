@@ -48,7 +48,7 @@ const LoginForm = () => {
                 .font-body    { font-family: 'DM Sans', sans-serif; }
             `}</style>
 
-            <div className="font-body relative min-h-screen w-full flex items-center justify-center bg-[#080808] px-4 overflow-hidden">
+            <div className="font-body relative h-[92dvh] w-full flex items-center justify-center bg-[#080808] px-4 overflow-hidden">
 
                 <div className="absolute inset-0 pointer-events-none">
                     <div

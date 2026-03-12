@@ -1,23 +1,37 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import {MessageResponse, MessageResponseList} from "@/src/schema/session/index.type";
+import { useEffect, useRef, useState } from "react";
+import { MessageResponse, MessageResponseList } from "@/src/schema/session/index.type";
 import MessageCard from "@/src/components/dashboard/session/message-card";
 import { SessionService } from "@/src/service";
 import { toast } from "sonner";
 import { Spinner } from "@/src/components/ui/spinner";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { MessageSquare, SendHorizonal } from "lucide-react";
-import {getCookieAction} from "@/src/actions/auth";
+import { Ban, Loader2, MessageSquare, Mic, MicOff, SendHorizonal } from "lucide-react";
+import { getCookieAction } from "@/src/actions/auth";
+import { useSessions } from "@/src/store/sessions/session-store";
+import { useVoiceRecorder } from "@/src/hooks/useVoiceRecorder";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
+import VoiceCallOverlay, { VoiceMessage } from "@/src/components/dashboard/session/voice-overlay";
 
 const ChatPanel = () => {
     const searchParams = useSearchParams();
     const sessionId = searchParams.get("sessionId");
+    const { state: voiceState, start, stop } = useVoiceRecorder();
+    const { sessions, mutateSession } = useSessions();
     const [messages, setMessages] = useState<MessageResponseList>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [input, setInput] = useState<string>("");
+    const assistantDeltaRef = useRef<string>("");
+
+    // ── Voice-call overlay state ──────────────────────────────────────────
+    const [callOpen, setCallOpen] = useState(false);
+    const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+    const [liveTranscript, setLiveTranscript] = useState<string>("");
+    const [callMessages, setCallMessages] = useState<VoiceMessage[]>([]);
+    const hangUpRef = useRef(false);
 
     useEffect(() => {
         if (!sessionId) return;
@@ -29,7 +43,6 @@ const ChatPanel = () => {
             }
             setMessages(data.messages);
         };
-
         (async () => {
             setLoading(true);
             await fetchMessages();
@@ -49,9 +62,8 @@ const ChatPanel = () => {
             content: text,
             created_at: new Date().toISOString(),
             session_id: sessionId,
-            sequence_num: messages.length
+            sequence_num: messages.length,
         };
-
         const tempAsstId = crypto.randomUUID();
         const tempAsstMsg: MessageResponse = {
             id: tempAsstId,
@@ -59,9 +71,8 @@ const ChatPanel = () => {
             content: "",
             created_at: new Date().toISOString(),
             session_id: sessionId,
-            sequence_num: messages.length + 1
+            sequence_num: messages.length + 1,
         };
-
         setMessages((prev) => [...prev, tempUserMsg, tempAsstMsg]);
         setLoading(true);
 
@@ -85,52 +96,226 @@ const ChatPanel = () => {
                 toast.error(err);
                 setLoading(false);
             },
-            {
-                'Authorization': 'Bearer ' + token,
-            }
+            { Authorization: "Bearer " + token }
         );
     };
 
+    const handleEnd = async () => {
+        if (!sessionId) return;
+        const { success, error, data } = await SessionService.endSession(sessionId);
+        if (!success || error || !data) {
+            toast.error(error?.message || "Failed to end session");
+            return;
+        }
+        toast.success("Session finished!");
+        await mutateSession();
+    };
+
+    const handleVoiceStart = async () => {
+        if (!sessionId) return;
+        hangUpRef.current = false;
+        setLiveTranscript("");
+        setIsAiSpeaking(false);
+        await start();
+    };
+
+    const handleOpenCall = async () => {
+        setCallMessages([]);
+        setCallOpen(true);
+        await handleVoiceStart();
+    };
+
+    const handleVoiceStop = async () => {
+        const token = await getCookieAction("access_token");
+        if (!sessionId) return;
+
+        const audioBlob = await stop();
+        setLiveTranscript("");
+
+        const tempUserMsg: MessageResponse = {
+            id: crypto.randomUUID(),
+            role: "user",
+            content: "🎙️ Transcribing...",
+            created_at: new Date().toISOString(),
+            session_id: sessionId,
+            sequence_num: messages.length,
+        };
+        const tempAsstId = crypto.randomUUID();
+        const tempAsstMsg: MessageResponse = {
+            id: tempAsstId,
+            role: "assistant",
+            content: "",
+            created_at: new Date().toISOString(),
+            session_id: sessionId,
+            sequence_num: messages.length + 1,
+        };
+        setMessages((prev) => [...prev, tempUserMsg, tempAsstMsg]);
+        setLoading(true);
+
+        await SessionService.sendVoiceMessage(
+            sessionId,
+            audioBlob,
+            (transcript) => {
+                if (hangUpRef.current) return;
+                setLiveTranscript(transcript);
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === tempUserMsg.id ? { ...m, content: transcript } : m
+                    )
+                );
+                setCallMessages((prev) => {
+                    const last = prev[prev.length - 1];
+                    if (last?.role === "user") {
+                        return [...prev.slice(0, -1), { role: "user", content: transcript }];
+                    }
+                    return [...prev, { role: "user", content: transcript }];
+                });
+            },
+            (delta) => {
+                if (hangUpRef.current) return;
+                setIsAiSpeaking(true);
+                assistantDeltaRef.current += delta;
+                setLiveTranscript((prev) => prev + delta);
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === tempAsstId ? { ...m, content: m.content + delta } : m
+                    )
+                );
+            },
+            (result) => {
+                if (hangUpRef.current) return;
+                setIsAiSpeaking(false);
+
+                const assistantContent = assistantDeltaRef.current;
+                assistantDeltaRef.current = "";
+
+                setCallMessages((prev) => [
+                    ...prev,
+                    { role: "assistant", content: assistantContent },
+                ]);
+                setLiveTranscript("");
+                setLoading(false);
+
+                if (result.audioChunks.length > 0) {
+                    const blob = new Blob(result.audioChunks as BlobPart[], { type: "audio/mpeg" });
+                    const url = URL.createObjectURL(blob);
+                    const audio = new Audio(url);
+                    audio.play();
+                    audio.onended = () => URL.revokeObjectURL(url);
+                }
+            },
+            (err) => {
+                toast.error(err);
+                setIsAiSpeaking(false);
+                setLoading(false);
+            },
+            { Authorization: "Bearer " + token }
+        );
+    };
+
+    const handleVoiceButton = async () => {
+        if (voiceState === "idle") {
+            await handleOpenCall();
+        } else if (voiceState === "recording") {
+            await handleVoiceStop();
+        }
+    };
+
+    const handleHangUp = async () => {
+        hangUpRef.current = true;
+        assistantDeltaRef.current = "";
+        setCallOpen(false);
+        setIsAiSpeaking(false);
+        setLiveTranscript("");
+        setCallMessages([]);
+        if (voiceState === "recording") {
+            await stop();
+        }
+        setLoading(false);
+    };
+
     const isEmpty = !loading && messages.length === 0;
+    const isCompleted = sessions.find((s) => s.id === sessionId)?.status === "completed";
 
     return (
-        <div className="chat-panel flex flex-col w-full h-[93dvh]">
-            <div className="flex-1 overflow-y-auto flex flex-col gap-4 py-4 min-h-0">
-                {loading && (
-                    <div className="flex w-full h-full items-center justify-center">
-                        <Spinner />
+        <div className="w-full max-w-[78dvw] h-[93dvh]">
+            <VoiceCallOverlay
+                isOpen={callOpen}
+                isAiSpeaking={isAiSpeaking}
+                isUserSpeaking={voiceState === "recording"}
+                onHangUp={handleHangUp}
+                onStopAndSend={handleVoiceStop}
+                onStartRecording={handleVoiceStart}
+                transcript={liveTranscript}
+                callMessages={callMessages}
+            />
+
+            <div className="flex flex-col w-full h-[93dvh] overflow-hidden relative">
+                {isCompleted && (
+                    <div className="flex items-center justify-center gap-2 bg-muted/60 border-b px-4 py-2 text-sm text-muted-foreground shrink-0">
+                        <Ban className="w-4 h-4 text-destructive" />
+                        <span>This session has ended and is now read-only.</span>
                     </div>
                 )}
 
-                {isEmpty && (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground py-16">
-                        <MessageSquare className="w-10 h-10 opacity-30" />
-                        <p className="text-sm font-medium">No messages yet</p>
-                        <p className="text-xs opacity-60">Send a message to start the conversation</p>
-                    </div>
-                )}
+                <ScrollArea className="pr-2 h-[90dvh] no-scrollbar">
+                        {loading && (
+                            <div className="flex w-full h-full items-center justify-center">
+                                <Spinner />
+                            </div>
+                        )}
+                        {isEmpty && (
+                            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground py-16">
+                                <MessageSquare className="w-10 h-10 opacity-30" />
+                                <p className="text-sm font-medium">No messages yet</p>
+                                <p className="text-xs opacity-60">Send a message to start the conversation</p>
+                            </div>
+                        )}
+                        {messages.map((message, index) => (
+                            <MessageCard message={message} key={message.id || index} />
+                        ))}
+                </ScrollArea>
 
-                {messages.map((message) => (
-                    <MessageCard message={message} key={message.id} />
-                ))}
-            </div>
-
-            <div className="flex items-center gap-2 border-t pt-4 shrink-0">
-                <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                    placeholder="Type a message..."
-                    disabled={!sessionId || loading}
-                    className="flex-1"
-                />
-                <Button
-                    onClick={handleSend}
-                    disabled={!input.trim() || !sessionId || loading}
-                    size="icon"
-                >
-                    <SendHorizonal className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2 border-t pt-4 shrink-0 fixed bottom-5 bg-background w-[78dvw]">
+                    <Input
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                        placeholder="Type a message..."
+                        disabled={!sessionId || loading || isCompleted}
+                        className="flex-1"
+                    />
+                    <Button
+                        onClick={handleSend}
+                        disabled={!input.trim() || !sessionId || loading || isCompleted}
+                        size="icon"
+                    >
+                        <SendHorizonal className="w-4 h-4" />
+                    </Button>
+                    <Button
+                        size="icon"
+                        variant={voiceState === "recording" ? "destructive" : "outline"}
+                        onClick={handleVoiceButton}
+                        disabled={!sessionId || loading || isCompleted || voiceState === "processing"}
+                        title={voiceState === "recording" ? "Stop & send" : "Voice message"}
+                    >
+                        {voiceState === "processing" ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : voiceState === "recording" ? (
+                            <MicOff className="w-4 h-4" />
+                        ) : (
+                            <Mic className="w-4 h-4" />
+                        )}
+                    </Button>
+                    <Button
+                        size="icon"
+                        disabled={loading || isCompleted}
+                        name="End Session"
+                        onClick={handleEnd}
+                    >
+                        <Ban />
+                    </Button>
+                </div>
             </div>
         </div>
     );

@@ -4,10 +4,10 @@ import {Spinner} from "@/src/components/ui/spinner";
 
 const DashboardLayout = ({children}: {children: React.ReactNode}) => {
     return (
-        <div className="flex flex-row gap-2 w-full h-full">
+        <div className="flex flex-row gap-2 w-full max-h-[94dvh]">
             <Suspense
                 fallback={
-                    <div className="flex items-center justify-center h-dvh w-full">
+                    <div className="flex items-center justify-center h-full w-full">
                         <Spinner />
                     </div>
                 }
