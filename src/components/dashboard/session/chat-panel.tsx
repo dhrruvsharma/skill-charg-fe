@@ -9,17 +9,21 @@ import { toast } from "sonner";
 import { Spinner } from "@/src/components/ui/spinner";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Ban, Loader2, MessageSquare, Mic, MicOff, SendHorizonal } from "lucide-react";
+import { Ban, Loader2, MessageSquare, Mic, MicOff, SendHorizonal, Video, VideoOff } from "lucide-react";
 import { getCookieAction } from "@/src/actions/auth";
 import { useSessions } from "@/src/store/sessions/session-store";
 import { useVoiceRecorder } from "@/src/hooks/useVoiceRecorder";
+import { useVideoRecorder } from "@/src/hooks/useVideoRecorder";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import VoiceCallOverlay, { VoiceMessage } from "@/src/components/dashboard/session/voice-overlay";
+import VideoCallOverlay, { VideoMessage } from "@/src/components/dashboard/session/video-overlay";
+import { ProctoringFlag } from "@/src/schema/session/index.type";
 
 const ChatPanel = () => {
     const searchParams = useSearchParams();
     const sessionId = searchParams.get("sessionId");
     const { state: voiceState, start, stop } = useVoiceRecorder();
+    const { state: videoState, start: videoStart, startSegment: videoStartSegment, stopSegment: videoStopSegment, stop: videoStopFull } = useVideoRecorder();
     const { sessions, mutateSession } = useSessions();
     const [messages, setMessages] = useState<MessageResponseList>([]);
     const [loading, setLoading] = useState<boolean>(false);
@@ -32,6 +36,16 @@ const ChatPanel = () => {
     const [liveTranscript, setLiveTranscript] = useState<string>("");
     const [callMessages, setCallMessages] = useState<VoiceMessage[]>([]);
     const hangUpRef = useRef(false);
+
+    // ── Video-call overlay state ──────────────────────────────────────────
+    const [videoCallOpen, setVideoCallOpen] = useState(false);
+    const [isVideoAiSpeaking, setIsVideoAiSpeaking] = useState(false);
+    const [videoTranscript, setVideoTranscript] = useState<string>("");
+    const [videoCallMessages, setVideoCallMessages] = useState<VideoMessage[]>([]);
+    const [proctoringFlags, setProctoringFlags] = useState<ProctoringFlag[]>([]);
+    const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+    const videoHangUpRef = useRef(false);
+    const videoAssistantDeltaRef = useRef<string>("");
 
     useEffect(() => {
         if (!sessionId) return;
@@ -234,11 +248,165 @@ const ChatPanel = () => {
         setLoading(false);
     };
 
+    // ── Video handlers ────────────────────────────────────────────────────
+    const handleOpenVideoCall = async () => {
+        if (!sessionId) return;
+        videoHangUpRef.current = false;
+        setVideoCallMessages([]);
+        setProctoringFlags([]);
+        setVideoTranscript("");
+        setIsVideoAiSpeaking(false);
+        const stream = await videoStart(); // opens camera + starts full-session recorder
+        setVideoStream(stream);
+        setVideoCallOpen(true);
+    };
+
+    /** Called by the overlay's "Record Message" button — starts a per-message segment. */
+    const handleVideoRecordStart = () => {
+        videoStartSegment();
+    };
+
+    const handleVideoStop = async () => {
+        const token = await getCookieAction("access_token");
+        if (!sessionId) return;
+
+        const videoBlob = await videoStopSegment(); // only stops the segment; full recorder keeps going
+        setVideoTranscript("");
+
+        const tempUserMsg: MessageResponse = {
+            id: crypto.randomUUID(),
+            role: "user",
+            content: "🎥 Transcribing...",
+            created_at: new Date().toISOString(),
+            session_id: sessionId,
+            sequence_num: messages.length,
+        };
+        const tempAsstId = crypto.randomUUID();
+        const tempAsstMsg: MessageResponse = {
+            id: tempAsstId,
+            role: "assistant",
+            content: "",
+            created_at: new Date().toISOString(),
+            session_id: sessionId,
+            sequence_num: messages.length + 1,
+        };
+        setMessages((prev) => [...prev, tempUserMsg, tempAsstMsg]);
+        setLoading(true);
+
+        await SessionService.sendVideoMessage(
+            sessionId,
+            videoBlob,
+            (transcript) => {
+                if (videoHangUpRef.current) return;
+                setVideoTranscript(transcript);
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === tempUserMsg.id ? { ...m, content: transcript } : m
+                    )
+                );
+                setVideoCallMessages((prev) => {
+                    const last = prev[prev.length - 1];
+                    if (last?.role === "user") {
+                        return [...prev.slice(0, -1), { role: "user", content: transcript }];
+                    }
+                    return [...prev, { role: "user", content: transcript }];
+                });
+            },
+            (flag) => {
+                if (videoHangUpRef.current) return;
+                setProctoringFlags((prev) => [...prev, flag]);
+            },
+            (delta) => {
+                if (videoHangUpRef.current) return;
+                setIsVideoAiSpeaking(true);
+                videoAssistantDeltaRef.current += delta;
+                setVideoTranscript((prev) => prev + delta);
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === tempAsstId ? { ...m, content: m.content + delta } : m
+                    )
+                );
+            },
+            (result) => {
+                if (videoHangUpRef.current) return;
+                setIsVideoAiSpeaking(false);
+
+                const assistantContent = videoAssistantDeltaRef.current;
+                videoAssistantDeltaRef.current = "";
+
+                setVideoCallMessages((prev) => [
+                    ...prev,
+                    { role: "assistant", content: assistantContent },
+                ]);
+                setVideoTranscript("");
+                setLoading(false);
+
+                if (result.audioChunks.length > 0) {
+                    const blob = new Blob(result.audioChunks as BlobPart[], { type: "audio/mpeg" });
+                    const url = URL.createObjectURL(blob);
+                    const audio = new Audio(url);
+                    audio.play();
+                    audio.onended = () => URL.revokeObjectURL(url);
+                }
+            },
+            (err) => {
+                toast.error(err);
+                setIsVideoAiSpeaking(false);
+                setLoading(false);
+            },
+            { Authorization: "Bearer " + token }
+        );
+    };
+
+    const handleVideoHangUp = async () => {
+        videoHangUpRef.current = true;
+        videoAssistantDeltaRef.current = "";
+        setIsVideoAiSpeaking(false);
+        setVideoTranscript("");
+        setVideoCallMessages([]);
+        setVideoCallOpen(false);
+        setLoading(false);
+
+        // Stop any in-progress segment silently
+        if (videoState === "recording") {
+            await videoStopSegment();
+        }
+
+        // Stop the full-session recorder and inject the recording into the chat
+        const fullBlob = await videoStopFull();
+        setVideoStream(null);
+
+        if (fullBlob.size > 0 && sessionId) {
+            const url = URL.createObjectURL(fullBlob);
+            const videoMsg: MessageResponse = {
+                id: crypto.randomUUID(),
+                role: "user",
+                content: `__video__:${url}`,
+                created_at: new Date().toISOString(),
+                session_id: sessionId,
+                sequence_num: messages.length,
+            };
+            setMessages((prev) => [...prev, videoMsg]);
+        }
+    };
+
     const isEmpty = !loading && messages.length === 0;
     const isCompleted = sessions.find((s) => s.id === sessionId)?.status === "completed";
 
     return (
         <div className="w-full max-w-[78dvw] h-[93dvh]">
+            <VideoCallOverlay
+                isOpen={videoCallOpen}
+                isAiSpeaking={isVideoAiSpeaking}
+                isUserSpeaking={videoState === "recording"}
+                stream={videoStream}
+                onHangUp={handleVideoHangUp}
+                onStopAndSend={handleVideoStop}
+                onStartRecording={handleVideoRecordStart}
+                transcript={videoTranscript}
+                callMessages={videoCallMessages}
+                proctoringFlags={proctoringFlags}
+            />
             <VoiceCallOverlay
                 isOpen={callOpen}
                 isAiSpeaking={isAiSpeaking}
@@ -305,6 +473,21 @@ const ChatPanel = () => {
                             <MicOff className="w-4 h-4" />
                         ) : (
                             <Mic className="w-4 h-4" />
+                        )}
+                    </Button>
+                    <Button
+                        size="icon"
+                        variant={videoState === "recording" ? "destructive" : "outline"}
+                        onClick={videoState === "idle" ? handleOpenVideoCall : handleVideoStop}
+                        disabled={!sessionId || loading || isCompleted || videoState === "processing" || callOpen}
+                        title={videoState === "recording" ? "Stop & send video" : "Video message"}
+                    >
+                        {videoState === "processing" ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : videoState === "recording" ? (
+                            <VideoOff className="w-4 h-4" />
+                        ) : (
+                            <Video className="w-4 h-4" />
                         )}
                     </Button>
                     <Button

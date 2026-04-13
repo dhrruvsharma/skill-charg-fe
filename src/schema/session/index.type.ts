@@ -21,3 +21,14 @@ export type VoiceMessageResult = {
     message: MessageResponse;
     audioChunks: Uint8Array[]
 }
+
+export type ProctoringFlag = {
+    type: string;
+    max_faces: number;
+    timestamp: string;
+}
+
+export type VideoMessageResult = {
+    message: MessageResponse;
+    audioChunks: Uint8Array[];
+}

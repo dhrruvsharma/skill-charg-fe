@@ -422,3 +422,110 @@
     .co-controls-panel { width: 100%; flex-shrink: 0; padding: 20px; }
     .co-avatars { display: none; }
 }
+
+/* ── Video overlay overrides ── */
+.vc-shell {
+    width: 960px;
+    max-width: 960px;
+}
+
+.vc-controls-panel {
+    width: 320px;
+}
+
+/* Camera preview area */
+.vc-camera-wrap {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #0b0f1a;
+    border: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 14px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.vc-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror for natural selfie view */
+    display: block;
+    border-radius: 14px;
+    transition: border 0.2s;
+}
+
+.vc-video.vc-video-active {
+    box-shadow: inset 0 0 0 2px rgba(34,197,94,0.5);
+}
+
+.vc-camera-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: rgba(255,255,255,0.2);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+}
+
+.vc-camera-off-icon { opacity: 0.3; }
+
+/* REC badge overlaid on camera */
+.vc-rec-badge {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(220,38,38,0.85);
+    color: white;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 99px;
+}
+
+.vc-rec-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: white;
+    animation: co-pulse 0.9s ease-in-out infinite;
+}
+
+/* Proctoring alert list */
+.vc-alerts {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 12px;
+}
+
+.vc-alert {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 11px;
+    border-radius: 8px;
+    background: rgba(234,179,8,0.1);
+    border: 1px solid rgba(234,179,8,0.25);
+    color: #fbbf24;
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+}
+
+@media (max-width: 600px) {
+    .vc-shell { width: 100%; }
+    .vc-controls-panel { width: 100%; }
+}
