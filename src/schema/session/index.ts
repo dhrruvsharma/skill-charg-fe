@@ -22,8 +22,31 @@ export const SessionResponseSchema = z.object({
     persona_name: z.string().optional(),
     system_prompt: z.string().optional(),
     duration_secs: z.number().optional(),
+    ai_report: z.string().optional(),
+    multiple_faces: z.boolean().optional(),
+    tab_switch_count: z.number().optional(),
+    suspicious_audio: z.boolean().optional(),
     created_at: z.string(),
     updated_at: z.string().optional(),
+})
+
+export const InterviewReportSchema = z.object({
+    overall_score: z.number(),
+    summary: z.string(),
+    strengths: z.array(z.string()),
+    weaknesses: z.array(z.string()),
+    detailed_feedback: z.string(),
+    question_scores: z.array(z.object({
+        question: z.string(),
+        score: z.number(),
+        feedback: z.string(),
+    })).optional(),
+    proctoring: z.object({
+        multiple_faces_detected: z.boolean(),
+        tab_switch_count: z.number(),
+        suspicious_audio: z.boolean(),
+        integrity_note: z.string(),
+    }).optional(),
 })
 
 export const SessionResponseArraySchema = z.array(SessionResponseSchema);

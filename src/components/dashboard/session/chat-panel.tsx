@@ -2,13 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { MessageResponse, MessageResponseList } from "@/src/schema/session/index.type";
+import { InterviewReport, MessageResponse, MessageResponseList } from "@/src/schema/session/index.type";
 import MessageCard from "@/src/components/dashboard/session/message-card";
+import InterviewReportCard from "@/src/components/dashboard/session/interview-report";
 import { SessionService } from "@/src/service";
 import { toast } from "sonner";
 import { Spinner } from "@/src/components/ui/spinner";
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import { Ban, Loader2, MessageSquare, Mic, MicOff, SendHorizonal, Video, VideoOff } from "lucide-react";
 import { getCookieAction } from "@/src/actions/auth";
 import { useSessions } from "@/src/store/sessions/session-store";
@@ -47,9 +48,39 @@ const ChatPanel = () => {
     const videoHangUpRef = useRef(false);
     const videoAssistantDeltaRef = useRef<string>("");
 
+    // ── Report state ──────────────────────────────────────────────────────
+    const [report, setReport] = useState<InterviewReport | null>(null);
+
+    const handleSessionEnd = async (rawReport: string) => {
+        try {
+            const parsed = JSON.parse(rawReport) as InterviewReport;
+            setReport(parsed);
+        } catch {
+            toast.error("Failed to generate interview report");
+        }
+
+        // Stop video/voice streams so the camera/mic are released
+        if (videoCallOpen) {
+            await videoStopFull();
+            setVideoStream(null);
+        }
+        if (voiceState === "recording") {
+            await stop();
+        }
+
+        // Close any open overlays
+        setCallOpen(false);
+        setVideoCallOpen(false);
+        setIsAiSpeaking(false);
+        setIsVideoAiSpeaking(false);
+        setLoading(false);
+        mutateSession();
+    };
+
     useEffect(() => {
         if (!sessionId) return;
-        const fetchMessages = async () => {
+        setReport(null);
+        const fetchData = async () => {
             const { success, error, data } = await SessionService.getMessages(sessionId);
             if (!success || error || !data) {
                 toast.error(error?.message || "Failed to get message");
@@ -59,10 +90,21 @@ const ChatPanel = () => {
         };
         (async () => {
             setLoading(true);
-            await fetchMessages();
+            await fetchData();
             setLoading(false);
         })();
     }, [sessionId]);
+
+    // Load report from session store once sessions are available (handles page refresh)
+    useEffect(() => {
+        if (!sessionId || report) return;
+        const session = sessions.find((s) => s.id === sessionId);
+        if (session?.status === "completed" && session.ai_report) {
+            try {
+                setReport(JSON.parse(session.ai_report) as InterviewReport);
+            } catch { /* ignore parse errors */ }
+        }
+    }, [sessionId, sessions]);
 
     const handleSend = async () => {
         const token = await getCookieAction("access_token");
@@ -110,7 +152,8 @@ const ChatPanel = () => {
                 toast.error(err);
                 setLoading(false);
             },
-            { Authorization: "Bearer " + token }
+            { Authorization: "Bearer " + token },
+            handleSessionEnd,
         );
     };
 
@@ -123,6 +166,13 @@ const ChatPanel = () => {
         }
         toast.success("Session finished!");
         await mutateSession();
+
+        // Show the report if the backend generated one
+        if (data.ai_report) {
+            try {
+                setReport(JSON.parse(data.ai_report) as InterviewReport);
+            } catch { /* ignore parse errors */ }
+        }
     };
 
     const handleVoiceStart = async () => {
@@ -223,7 +273,8 @@ const ChatPanel = () => {
                 setIsAiSpeaking(false);
                 setLoading(false);
             },
-            { Authorization: "Bearer " + token }
+            { Authorization: "Bearer " + token },
+            handleSessionEnd,
         );
     };
 
@@ -354,7 +405,8 @@ const ChatPanel = () => {
                 setIsVideoAiSpeaking(false);
                 setLoading(false);
             },
-            { Authorization: "Bearer " + token }
+            { Authorization: "Bearer " + token },
+            handleSessionEnd,
         );
     };
 
@@ -399,6 +451,7 @@ const ChatPanel = () => {
                 isOpen={videoCallOpen}
                 isAiSpeaking={isVideoAiSpeaking}
                 isUserSpeaking={videoState === "recording"}
+                isProcessing={loading && videoCallOpen && !isVideoAiSpeaking}
                 stream={videoStream}
                 onHangUp={handleVideoHangUp}
                 onStopAndSend={handleVideoStop}
@@ -426,7 +479,7 @@ const ChatPanel = () => {
                     </div>
                 )}
 
-                <ScrollArea className="pr-2 h-[90dvh] no-scrollbar">
+                <ScrollArea className="pr-2 flex-1 min-h-0 no-scrollbar">
                         {loading && (
                             <div className="flex w-full h-full items-center justify-center">
                                 <Spinner />
@@ -442,16 +495,28 @@ const ChatPanel = () => {
                         {messages.map((message, index) => (
                             <MessageCard message={message} key={message.id || index} />
                         ))}
+                        {report && (
+                            <InterviewReportCard
+                                report={report}
+                                onDismiss={() => setReport(null)}
+                            />
+                        )}
                 </ScrollArea>
 
-                <div className="flex items-center gap-2 border-t pt-4 shrink-0 fixed bottom-5 bg-background w-[78dvw]">
-                    <Input
+                <div className="flex items-end gap-2 border-t pt-4 pb-4 shrink-0 bg-background">
+                    <Textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                        placeholder="Type a message..."
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend();
+                            }
+                        }}
+                        placeholder="Type a message... (Shift+Enter for new line)"
                         disabled={!sessionId || loading || isCompleted}
-                        className="flex-1"
+                        className="flex-1 min-h-[4rem] max-h-[10rem] resize-none"
+                        rows={3}
                     />
                     <Button
                         onClick={handleSend}

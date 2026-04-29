@@ -7,6 +7,12 @@ import {
     SessionResponseList, VideoMessageResult, VoiceMessageResult
 } from "@/src/schema/session/index.type";
 import {ChatHistoryResponseSchema, SessionResponseArraySchema, SessionResponseSchema} from "@/src/schema/session";
+import {z} from "zod";
+
+const DeleteResponseSchema = z.object({
+    success: z.boolean(),
+    message: z.string().optional(),
+});
 
 export default class SessionController extends BaseController {
     constructor(backendUrl: string) {
@@ -27,7 +33,8 @@ export default class SessionController extends BaseController {
         onDelta: (text: string) => void,
         onDone: (msg: MessageResponse) => void,
         onError: (err: string) => void,
-        headers: Record<string, string>
+        headers: Record<string, string>,
+        onSessionEnd?: (report: string) => void,
     ): Promise<void> {
         const res = await fetch(`${this.backendUrl}/${sessionId}/messages`, {
             method: "POST",
@@ -43,6 +50,7 @@ export default class SessionController extends BaseController {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let lastEvent = "";
 
         while (true) {
             const { done, value } = await reader.read();
@@ -53,20 +61,33 @@ export default class SessionController extends BaseController {
             buffer = lines.pop() ?? "";
 
             for (const line of lines) {
+                if (line.startsWith("event: ")) {
+                    lastEvent = line.slice(7).trim();
+                    continue;
+                }
                 if (!line.startsWith("data: ")) continue;
                 const payload = line.slice(6).trim();
                 if (!payload) continue;
 
-                const evt = JSON.parse(payload);
+                if (lastEvent === "session_end") {
+                    onSessionEnd?.(payload);
+                    lastEvent = "";
+                    continue;
+                }
 
+                const evt = JSON.parse(payload);
                 if (evt.type === "delta")  onDelta(evt.payload.content);
                 if (evt.type === "error")  onError(evt.payload.message);
                 if (evt.type === "done")   onDone(evt.payload);
+                lastEvent = "";
             }
         }
     }
     async endSession(sessionId: string): Promise<ClientResponse<SessionResponse>> {
         return this.patch(`/${sessionId}/end`,{},SessionResponseSchema,"data");
+    }
+    async deleteSession(sessionId: string) {
+        return this.delete(`/${sessionId}`, DeleteResponseSchema);
     }
     async sendVideoMessage(
         sessionId: string,
@@ -76,7 +97,8 @@ export default class SessionController extends BaseController {
         onDelta: (text: string) => void,
         onDone: (result: VideoMessageResult) => void,
         onError: (err: string) => void,
-        headers: Record<string, string>
+        headers: Record<string, string>,
+        onSessionEnd?: (report: string) => void,
     ): Promise<void> {
         const form = new FormData();
         form.append("video", videoBlob, "recording.webm");
@@ -120,6 +142,7 @@ export default class SessionController extends BaseController {
                 if (lastEvent === "error")           onError(payload);
                 if (lastEvent === "done")            onDone({ message: JSON.parse(payload), audioChunks });
                 if (lastEvent === "proctoring_flag") onProctoringFlag(JSON.parse(payload));
+                if (lastEvent === "session_end")     onSessionEnd?.(payload);
                 if (lastEvent === "audio") {
                     const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
                     audioChunks.push(bytes);
@@ -135,7 +158,8 @@ export default class SessionController extends BaseController {
         onDelta: (text: string) => void,
         onDone: (msg: VoiceMessageResult) => void,
         onError: (err: string) => void,
-        headers: Record<string, string>
+        headers: Record<string, string>,
+        onSessionEnd?: (report: string) => void,
     ): Promise<void> {
         const form = new FormData();
         form.append("audio", audioBlob, "recording.webm");
@@ -178,6 +202,7 @@ export default class SessionController extends BaseController {
                 if (lastEvent === "delta")      onDelta(payload);
                 if (lastEvent === "error")      onError(payload);
                 if (lastEvent === "done")       onDone({ message: JSON.parse(payload), audioChunks });
+                if (lastEvent === "session_end") onSessionEnd?.(payload);
                 if (lastEvent === "audio") {
                     const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
                     audioChunks.push(bytes)

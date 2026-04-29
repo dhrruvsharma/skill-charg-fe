@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {
-    ChatHistoryResponseSchema, MessageResponseArraySchema,
+    ChatHistoryResponseSchema, InterviewReportSchema, MessageResponseArraySchema,
     MessageResponseSchema, MessageRoleSchema,
     SendMessageRequest, SessionResponseArraySchema,
     SessionResponseSchema, SessionStatusSchema, SSEDeltaPayloadSchema, SSEErrorPayloadSchema, SSEEventSchema
@@ -32,3 +32,5 @@ export type VideoMessageResult = {
     message: MessageResponse;
     audioChunks: Uint8Array[];
 }
+
+export type InterviewReport = z.infer<typeof InterviewReportSchema>;

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MicOff, PhoneOff, Mic, SendHorizonal, AlertTriangle, Video, VideoOff } from "lucide-react";
+import { Loader2, MicOff, PhoneOff, Mic, SendHorizonal, AlertTriangle, Video, VideoOff } from "lucide-react";
 import { ProctoringFlag } from "@/src/schema/session/index.type";
 import "./style.css";
 
-type CallState = "connecting" | "user-speaking" | "ai-speaking" | "idle";
+type CallState = "connecting" | "user-speaking" | "ai-speaking" | "processing" | "idle";
 
 export interface VideoMessage {
     role: "user" | "assistant";
@@ -16,6 +16,7 @@ interface VideoCallOverlayProps {
     isOpen: boolean;
     isAiSpeaking: boolean;
     isUserSpeaking: boolean;
+    isProcessing: boolean;
     stream: MediaStream | null;
     onHangUp: () => void;
     onStopAndSend: () => void;
@@ -29,6 +30,7 @@ export const VideoCallOverlay = ({
     isOpen,
     isAiSpeaking,
     isUserSpeaking,
+    isProcessing,
     stream,
     onHangUp,
     transcript,
@@ -61,11 +63,12 @@ export const VideoCallOverlay = ({
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [callMessages, transcript]);
 
-    useEffect(() => {
-        if (videoRef.current && stream) {
-            videoRef.current.srcObject = stream;
+    const videoCallbackRef = (el: HTMLVideoElement | null) => {
+        videoRef.current = el;
+        if (el && stream) {
+            el.srcObject = stream;
         }
-    }, [stream]);
+    };
 
     const formatDuration = (s: number) => {
         const m = Math.floor(s / 60).toString().padStart(2, "0");
@@ -77,7 +80,9 @@ export const VideoCallOverlay = ({
         ? "ai-speaking"
         : isUserSpeaking
             ? "user-speaking"
-            : "idle";
+            : isProcessing
+                ? "processing"
+                : "idle";
 
     if (!mounted) return null;
 
@@ -113,6 +118,15 @@ export const VideoCallOverlay = ({
                                 </div>
                             </div>
                         )}
+                        {isProcessing && !isAiSpeaking && !isUserSpeaking && (
+                            <div className="co-bubble-wrap assistant">
+                                <span className="co-bubble-label">Skill Charge</span>
+                                <div className="co-bubble assistant streaming" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <Loader2 size={12} className="animate-spin" />
+                                    {transcript || "Processing your message…"}
+                                </div>
+                            </div>
+                        )}
                         {isAiSpeaking && (
                             <div className="co-bubble-wrap assistant">
                                 <span className="co-bubble-label">Skill Charge</span>
@@ -130,19 +144,23 @@ export const VideoCallOverlay = ({
                 {/* ── RIGHT: camera + controls ── */}
                 <div className="co-controls-panel vc-controls-panel">
                     <div className="co-status-chip">
-                        <span className="co-messages-header-dot" />
+                        {callState === "processing"
+                            ? <Loader2 size={10} className="animate-spin" />
+                            : <span className="co-messages-header-dot" />}
                         {callState === "ai-speaking"
                             ? "AI Responding"
                             : callState === "user-speaking"
                                 ? "Recording"
-                                : "Connected"}
+                                : callState === "processing"
+                                    ? "Processing..."
+                                    : "Connected"}
                     </div>
 
                     {/* Webcam preview */}
                     <div className="vc-camera-wrap">
                         {stream ? (
                             <video
-                                ref={videoRef}
+                                ref={videoCallbackRef}
                                 autoPlay
                                 muted
                                 playsInline
@@ -183,6 +201,11 @@ export const VideoCallOverlay = ({
                             <MicOff size={11} /> Mic muted
                         </div>
                     )}
+                    {callState === "processing" && (
+                        <div className="co-state-badge ai">
+                            <Loader2 size={11} className="animate-spin" /> Transcribing &amp; generating response…
+                        </div>
+                    )}
                     {callState === "user-speaking" && (
                         <div className="co-state-badge user">
                             <Mic size={11} /> Recording
@@ -203,6 +226,12 @@ export const VideoCallOverlay = ({
                         {callState === "user-speaking" && (
                             <button className="co-btn co-btn-send" onClick={onStopAndSend}>
                                 <SendHorizonal size={14} /> Send Message
+                            </button>
+                        )}
+
+                        {callState === "processing" && (
+                            <button className="co-btn co-btn-send" disabled>
+                                <Loader2 size={14} className="animate-spin" /> Processing…
                             </button>
                         )}
 
